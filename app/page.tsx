@@ -1,19 +1,30 @@
-import { HeroSection } from "@/components/home/hero-section"
-import { HowItWorks } from "@/components/home/how-it-works"
-import { PopularDomains } from "@/components/home/popular-domains"
-import { FeaturesSection } from "@/components/home/features-section"
-import { StatsSection } from "@/components/home/stats-section"
-import { Testimonials } from "@/components/home/testimonials"
+import { Navbar } from '@/components/navbar'
+import { Footer } from '@/components/footer'
+
+import { HeroSection } from '@/components/home/hero-section'
+import { StatsSection } from '@/components/home/stats-section'
+import { HowItWorksSection } from '@/components/home/how-it-works-section'
+import { FeaturesSection } from '@/components/home/features-section'
+import { DomainsSection } from '@/components/home/domains-section'
+import { JourneySection } from '@/components/home/journey-section'
+import { TestimonialsSection } from '@/components/home/testimonials-section'
+import { CtaSection } from '@/components/home/cta-section'
 
 export default function HomePage() {
   return (
-    <>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+
       <HeroSection />
       <StatsSection />
-      <HowItWorks />
-      <PopularDomains />
+      <HowItWorksSection />
       <FeaturesSection />
-      <Testimonials />
-    </>
+      <DomainsSection />
+      <JourneySection />
+      <TestimonialsSection />
+      <CtaSection />
+
+      <Footer />
+    </div>
   )
 }

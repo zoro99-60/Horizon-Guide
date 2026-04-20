@@ -1,227 +1,237 @@
-"use client"
+'use client'
 
-import Link from "next/link"
-import { useRouter, usePathname } from "next/navigation"
-import { useState, useEffect } from "react"
-import { Compass, Menu, X, LogOut, LayoutDashboard } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { cn } from "@/lib/utils"
-import BorderGlow from "@/components/ui/BorderGlow"
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useState, useEffect, useMemo } from 'react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import {
+  Compass,
+  Map as MapIcon,
+  ClipboardList,
+  LogIn,
+  Menu,
+  X,
+  Sparkles,
+  LayoutDashboard,
+  ArrowRight,
+  UserCheck,
+} from 'lucide-react'
+import { getProfile, getSavedRoadmaps, getQuizResult, Profile, SavedRoadmap } from '@/lib/store'
 
-const navLinks = [
-  { href: "/", label: "Home" },
-  { href: "/roadmaps", label: "Roadmaps" },
-  { href: "/career-insights", label: "Career Insights" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/quiz", label: "Quiz" },
-  { href: "/community", label: "Community" },
+const publicNavLinks = [
+  { href: '/', label: 'Home' },
+  { href: '/explore', label: 'Explore Domains', icon: Compass },
+  { href: '/roadmaps', label: 'Roadmaps', icon: MapIcon },
+  { href: '/quiz', label: 'Career Quiz', icon: ClipboardList },
+  { href: '/about', label: 'About' },
 ]
 
 export function Navbar() {
-  const router = useRouter()
   const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
-  const [user, setUser] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
+
+  const [isScrolled, setIsScrolled] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [savedRoadmaps, setSavedRoadmaps] = useState<SavedRoadmap[]>([])
+  const [recommendedDomainId, setRecommendedDomainId] = useState<string | null>(null)
 
   useEffect(() => {
     const handleScroll = () => {
-      const isScrolled = window.scrollY > 20
-      setScrolled((prev) => (prev !== isScrolled ? isScrolled : prev))
-    }
-    
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    
-    // Check auth status
-    const getInitialUser = async () => {
-        try {
-            const { createClient } = await import("@/utils/supabase/client")
-            const supabase = createClient()
-            const { data: { user: foundUser } } = await supabase.auth.getUser()
-            setUser(foundUser)
-        } catch (err) {
-            console.error("Error fetching user:", err)
-        } finally {
-            setIsLoading(false)
-        }
+      setIsScrolled(window.scrollY > 10)
     }
 
-    getInitialUser()
-
-    const setupAuth = async () => {
-        const { createClient } = await import("@/utils/supabase/client")
-        const supabase = createClient()
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null)
-        })
-        return subscription
-    }
-
-    const subscriptionPromise = setupAuth()
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll)
-      subscriptionPromise.then(sub => sub.unsubscribe())
-    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const handleLogout = async () => {
-    const { createClient } = await import("@/utils/supabase/client")
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push("/")
-    router.refresh()
-  }
+  useEffect(() => {
+    setProfile(getProfile())
+    setSavedRoadmaps(getSavedRoadmaps())
+    setRecommendedDomainId(getQuizResult()?.primaryDomain || null)
+    setIsMobileMenuOpen(false)
+    setIsMounted(true)
+  }, [pathname])
+
+  const hasCompletedOnboarding = !!profile?.onboardingComplete
+  const hasSavedRoadmap = savedRoadmaps.length > 0
+
+  const primaryCta = useMemo(() => {
+    if (!profile) {
+      return {
+        href: '/onboarding',
+        label: 'Get Started',
+        icon: null,
+      }
+    }
+
+    if (!hasCompletedOnboarding) {
+      return {
+        href: '/onboarding',
+        label: 'Complete Setup',
+        icon: UserCheck,
+      }
+    }
+
+    if (hasSavedRoadmap) {
+      return {
+        href: '/dashboard',
+        label: 'Continue Journey',
+        icon: LayoutDashboard,
+      }
+    }
+
+    if (recommendedDomainId) {
+      return {
+        href: `/roadmaps/${recommendedDomainId}`,
+        label: 'View Roadmap',
+        icon: ArrowRight,
+      }
+    }
+
+    return {
+      href: '/dashboard',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+    }
+  }, [profile, hasCompletedOnboarding, hasSavedRoadmap, recommendedDomainId])
 
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 w-full transition-all duration-300",
-        scrolled
-          ? "border-b border-border/60 bg-background/90 shadow-sm shadow-black/5 backdrop-blur-xl"
-          : "border-b border-transparent bg-background/60 backdrop-blur-md"
+        'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
+        isScrolled ? 'glass border-b border-border/50' : 'bg-transparent'
       )}
     >
-      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 lg:px-8">
-        <Link
-          href="/"
-          className="group flex items-center gap-2 font-sans font-bold text-xl tracking-tight transition-opacity hover:opacity-80"
-        >
-          <Compass className="h-6 w-6 text-primary transition-transform duration-500 group-hover:rotate-45" />
-          <span className="text-foreground">Horizon</span>
-          <span className="text-primary">Guide</span>
-        </Link>
+      <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+              <Sparkles className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-xl font-bold font-heading tracking-tight text-foreground group-hover:text-primary transition-colors">
+              Horizon Guide
+            </span>
+          </Link>
 
-        {/* Desktop links */}
-        <div className="hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => {
-            const isActive = pathname === link.href
-            return (
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center gap-1">
+            {publicNavLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "animated-underline relative rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
-                  isActive
-                    ? "bg-primary/10 text-primary active"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                  pathname === link.href
+                    ? 'text-primary bg-primary/10'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 )}
               >
                 {link.label}
-                {isActive && (
-                  <span className="absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-primary animate-scale-in" />
-                )}
               </Link>
-            )
-          })}
+            ))}
+
+            {hasCompletedOnboarding && (
+              <Link
+                href="/dashboard"
+                className={cn(
+                  'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                  pathname === '/dashboard'
+                    ? 'text-primary bg-primary/10'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                Dashboard
+              </Link>
+            )}
+          </div>
+
+          {/* Desktop Action Buttons */}
+          <div className="hidden md:flex items-center gap-3">
+            {!isMounted ? (
+              <div className="w-24 h-9" />
+            ) : !profile ? (
+              <Link href={primaryCta.href}>
+                <Button size="sm" className="bg-primary hover:bg-primary/90 glow-primary">
+                  {primaryCta.label}
+                </Button>
+              </Link>
+            ) : (
+              <Link href={primaryCta.href}>
+                <Button size="sm" className="bg-primary hover:bg-primary/90 shadow-sm shadow-primary/20">
+                  {primaryCta.icon && <primaryCta.icon className="h-4 w-4 mr-2" />}
+                  {primaryCta.label}
+                </Button>
+              </Link>
+            )}
+          </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            className="md:hidden p-2 text-muted-foreground hover:text-foreground"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle navigation menu"
+          >
+            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
         </div>
 
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden py-4 border-t border-border/50">
+            <div className="flex flex-col gap-2">
+              {publicNavLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn(
+                    'px-4 py-3 text-sm font-medium rounded-lg transition-colors',
+                    pathname === link.href
+                      ? 'text-primary bg-primary/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  )}
+                >
+                  {link.label}
+                </Link>
+              ))}
 
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          
-          {!isLoading && (
-            <>
-              {user ? (
-                <>
-                  <Button variant="ghost" size="sm" className="hidden md:inline-flex hover:text-primary gap-2" onClick={handleLogout}>
-                    <LogOut className="h-4 w-4" />
-                    Logout
-                  </Button>
-                  <BorderGlow
-                    glowColor="270 100% 60%"
-                    borderRadius={8}
-                    className="hidden md:inline-block"
-                  >
-                    <Button asChild size="sm" className="gap-1.5 transition-transform hover:scale-105 active:scale-95 px-5">
-                      <Link href="/dashboard" className="gap-2">
-                        <LayoutDashboard className="h-4 w-4" />
-                        Dashboard
-                      </Link>
-                    </Button>
-                  </BorderGlow>
-                </>
-              ) : (
-                <>
-                  <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex hover:text-primary">
-                    <Link href="/auth/login">Login</Link>
-                  </Button>
-                  <BorderGlow
-                    glowColor="270 100% 60%"
-                    borderRadius={8}
-                    className="hidden md:inline-block"
-                  >
-                    <Button asChild size="sm" className="gap-1.5 transition-transform hover:scale-105 active:scale-95">
-                      <Link href="/auth/register">Get Started</Link>
-                    </Button>
-                  </BorderGlow>
-                </>
+              {hasCompletedOnboarding && (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn(
+                    'px-4 py-3 text-sm font-medium rounded-lg transition-colors',
+                    pathname === '/dashboard'
+                      ? 'text-primary bg-primary/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  )}
+                >
+                  Dashboard
+                </Link>
               )}
-            </>
-          )}
 
-
-
-          {/* Mobile menu */}
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden transition-transform hover:scale-110 active:scale-95"
-                aria-label="Open menu"
-              >
-                <span className={cn("transition-all duration-300", open ? "rotate-90 opacity-0 absolute" : "rotate-0 opacity-100")}>
-                  <Menu className="h-5 w-5" />
-                </span>
-                <span className={cn("transition-all duration-300", !open ? "rotate-90 opacity-0 absolute" : "rotate-0 opacity-100")}>
-                  <X className="h-5 w-5" />
-                </span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-72 animate-fade-left">
-              <SheetTitle className="flex items-center gap-2 font-bold text-lg">
-                <Compass className="h-5 w-5 text-primary" />
-                HorizonGuide
-              </SheetTitle>
-              <div className="mt-6 flex flex-col gap-1 stagger-children">
-                {navLinks.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      "reveal is-visible rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                      pathname === link.href
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    )}
-                  >
-                    {link.label}
+              <div className="flex flex-col gap-2 pt-4 border-t border-border/50 mt-2">
+                {!isMounted ? null : !profile ? (
+                  <Link href={primaryCta.href} onClick={() => setIsMobileMenuOpen(false)}>
+                    <Button className="w-full bg-primary hover:bg-primary/90">
+                      {primaryCta.label}
+                    </Button>
                   </Link>
-                ))}
-                {user ? (
-                  <>
-                    <Button asChild className="mt-4 transition-transform hover:scale-105 active:scale-95">
-                      <Link href="/dashboard" onClick={() => setOpen(false)}>Dashboard</Link>
-                    </Button>
-                    <Button variant="outline" className="mt-2 transition-transform hover:scale-105 active:scale-95 gap-2" onClick={handleLogout}>
-                      <LogOut className="h-4 w-4" />
-                      Logout
-                    </Button>
-                  </>
                 ) : (
-                  <Button asChild className="mt-4 transition-transform hover:scale-105 active:scale-95">
-                    <Link href="/auth/register" onClick={() => setOpen(false)}>Get Started</Link>
-                  </Button>
+                  <Link href={primaryCta.href} onClick={() => setIsMobileMenuOpen(false)}>
+                    <Button className="w-full bg-primary hover:bg-primary/90">
+                      {primaryCta.icon && <primaryCta.icon className="h-4 w-4 mr-2" />}
+                      {primaryCta.label}
+                    </Button>
+                  </Link>
                 )}
               </div>
-            </SheetContent>
-          </Sheet>
-        </div>
+            </div>
+          </div>
+        )}
       </nav>
     </header>
   )
