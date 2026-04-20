@@ -1,131 +1,326 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { domains, roadmapTemplates, companiesByDomain } from "@/lib/mock-data"
-import { api } from "@/lib/api-client"
-import { RoadmapForm } from "@/components/roadmap/roadmap-form"
-import { RoadmapDisplay } from "@/components/roadmap/roadmap-display"
-import { CompanyRoles } from "@/components/roadmap/company-roles"
-import { ResumeGenerator } from "@/components/roadmap/resume-generator"
-import { Map, ArrowRight } from "lucide-react"
-
-interface FormData {
-  branch: string
-  domain: string
-  skills: string[]
-  level: string
-}
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { Navbar } from '@/components/navbar'
+import { Footer } from '@/components/footer'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { domains, roadmaps } from '@/data/mockData'
+import { domainIcons } from '@/components/ui-components'
+import { getProfile, getQuizResult, getSavedRoadmaps } from '@/lib/store'
+import {
+  Map,
+  ArrowRight,
+  Clock,
+  Layers,
+  Sparkles,
+  BookmarkCheck,
+  UserCheck,
+} from 'lucide-react'
 
 export default function RoadmapsPage() {
-  const [phases, setPhases] = useState<any[] | null>(null)
-  const [companies, setCompanies] = useState<any[]>([])
-  const [domainInfo, setDomainInfo] = useState<any | null>(null)
-  const [formData, setFormData] = useState<FormData | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [profileChecked, setProfileChecked] = useState(false)
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
+  const [recommendedDomainId, setRecommendedDomainId] = useState<string | null>(null)
+  const [savedRoadmapIds, setSavedRoadmapIds] = useState<string[]>([])
 
-  const handleGenerate = async (data: FormData) => {
-    setIsGenerating(true)
-    setFormData(data)
+  useEffect(() => {
+    const profile = getProfile()
+    const quizResult = getQuizResult()
+    const savedRoadmaps = getSavedRoadmaps()
 
-    try {
-      const selectedDomain = domains.find((d) => d.id === data.domain)
-      setDomainInfo(selectedDomain || null)
+    setHasCompletedOnboarding(!!profile?.onboardingComplete)
+    setRecommendedDomainId(quizResult?.primaryDomain || null)
 
-      const [roadmapRes, companiesRes] = await Promise.all([
-        api.getRoadmap(data.domain),
-        api.getCompanies(data.domain)
-      ])
-
-      let finalPhases = roadmapRes?.phases || roadmapTemplates[data.domain] || null
-      let finalCompanies = (companiesRes && companiesRes.length > 0) ? companiesRes : (companiesByDomain[data.domain] || [])
-
-      setPhases(finalPhases)
-      setCompanies(finalCompanies)
-
-      // Save to Supabase
-      if (finalPhases) {
-        const { createClient } = await import("@/utils/supabase/client")
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        
-        if (user) {
-          await supabase.from("roadmaps").insert({
-            user_id: user.id,
-            title: selectedDomain?.title || data.domain,
-            steps: finalPhases,
-            status: 'active'
-          })
-        }
-      }
-
-    } catch (error) {
-      console.error("Failed to generate roadmap from API:", error)
-      const fallbackPhases = roadmapTemplates[data.domain] || null
-      setPhases(fallbackPhases)
-      setCompanies(companiesByDomain[data.domain] || [])
-      setDomainInfo(domains.find((d) => d.id === data.domain) || null)
-    } finally {
-      setIsGenerating(false)
+    if (Array.isArray(savedRoadmaps)) {
+      const ids = savedRoadmaps
+        .map((item: any) => item?.id || item?.domain)
+        .filter(Boolean)
+      setSavedRoadmapIds(ids)
     }
+
+    setProfileChecked(true)
+  }, [])
+
+  const availableRoadmaps = useMemo(() => {
+    return domains.filter((d) => roadmaps[d.id as keyof typeof roadmaps])
+  }, [])
+
+  if (!profileChecked) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="pt-24 pb-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <Card className="bg-card border-border">
+              <CardContent className="p-8 text-center">
+                <p className="text-muted-foreground">Loading roadmaps...</p>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          Roadmap Generator
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          Configure your preferences and get a personalized, phase-by-phase career roadmap.
-        </p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <Navbar />
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-5">
-        {/* Left Panel: Form */}
-        <div className="lg:col-span-2">
-          <RoadmapForm onGenerate={handleGenerate} isGenerating={isGenerating} />
-        </div>
-
-        {/* Right Panel: Result */}
-        <div className="lg:col-span-3">
-          {phases && domainInfo && formData ? (
-            <div className="flex flex-col gap-8">
-              <RoadmapDisplay phases={phases} domainTitle={domainInfo.title} />
-              {companies.length > 0 && (
-                <CompanyRoles companies={companies} domainTitle={domainInfo.title} />
-              )}
-              <ResumeGenerator
-                phases={phases}
-                domainInfo={domainInfo}
-                userSkills={formData.skills}
-                userLevel={formData.level}
-                userBranch={formData.branch}
-              />
-            </div>
-          ) : (
-            <div className="flex h-full min-h-[400px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+      <main className="pt-24 pb-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="flex justify-center mb-6">
+              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Map className="h-8 w-8 text-primary" />
               </div>
-              <h3 className="mt-6 text-lg font-semibold text-foreground">
-                {isGenerating ? "Generating your roadmap..." : "Your Roadmap Will Appear Here"}
-              </h3>
-              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                {isGenerating
-                  ? "Analyzing your preferences and creating a personalized learning path."
-                  : "Fill out the form on the left and click \"Generate Roadmap\" to get your personalized career path."}
-              </p>
-              {!isGenerating && (
-                <div className="mt-4 flex items-center gap-1 text-sm text-primary">
-                  <ArrowRight className="h-4 w-4 rotate-180 lg:rotate-0" />
-                  <span className="hidden lg:inline">Start by selecting your branch</span>
-                  <span className="lg:hidden">Start by selecting your branch above</span>
-                </div>
-              )}
             </div>
-          )}
+
+            <Badge variant="secondary" className="mb-4">
+              Career Roadmaps
+            </Badge>
+
+            <h1 className="text-3xl sm:text-4xl font-bold font-heading text-foreground mb-4">
+              Your Path to Success
+            </h1>
+
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Explore structured career roadmaps designed to take you from beginner to
+              internship-ready and placement-ready. Each roadmap includes skills, phases,
+              and practical guidance.
+            </p>
+          </div>
+
+          {/* Guidance Cards */}
+          <div className="grid lg:grid-cols-2 gap-6 mb-10">
+            {!hasCompletedOnboarding ? (
+              <Card className="bg-card border-border">
+                <CardContent className="p-6 flex items-start gap-4">
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <UserCheck className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-foreground mb-2">
+                      Complete Onboarding First
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Tell Horizon Guide about your year, branch, interests, and goals so we can
+                      personalize the best roadmap for you.
+                    </p>
+                    <Link href="/onboarding">
+                      <Button className="bg-primary hover:bg-primary/90">
+                        Go to Onboarding
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : recommendedDomainId ? (
+              <Card className="bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/30">
+                <CardContent className="p-6 flex items-start gap-4">
+                  <div className="h-12 w-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-foreground mb-2">
+                      Recommended for You
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Based on your quiz result, we recommend exploring the roadmap that matches
+                      your strongest career fit.
+                    </p>
+                    <Link href={`/roadmaps/${recommendedDomainId}`}>
+                      <Button className="bg-primary hover:bg-primary/90">
+                        View Recommended Roadmap
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-card border-border">
+                <CardContent className="p-6 flex items-start gap-4">
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-foreground mb-2">
+                      Not Sure Where to Start?
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Take the Career Quiz to discover which domain fits your interests and
+                      strengths best.
+                    </p>
+                    <Link href="/quiz">
+                      <Button className="bg-primary hover:bg-primary/90">
+                        Take Career Quiz
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="bg-card border-border">
+              <CardContent className="p-6 flex items-start gap-4">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <BookmarkCheck className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                    Save Roadmaps to Dashboard
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Open any roadmap, review the phases, and save it to your dashboard so you can
+                    track progress and skill completion.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Roadmaps Grid */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {availableRoadmaps.map((domain) => {
+              const roadmap = roadmaps[domain.id as keyof typeof roadmaps]
+              const IconComponent = domainIcons[domain.icon]
+              const totalSkills = roadmap.phases.reduce(
+                (acc, phase) => acc + phase.skills.length,
+                0
+              )
+
+              const isRecommended = recommendedDomainId === domain.id
+              const isSaved = savedRoadmapIds.includes(domain.id)
+
+              return (
+                <Card
+                  key={domain.id}
+                  className={`bg-card transition-all group hover:border-primary/50 ${
+                    isRecommended
+                      ? 'border-primary/60 shadow-lg shadow-primary/10'
+                      : 'border-border'
+                  }`}
+                >
+                  <CardHeader>
+                    <div className="flex items-start justify-between mb-4 gap-3">
+                      <div
+                        className="h-14 w-14 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
+                        style={{ backgroundColor: `${domain.color}20` }}
+                      >
+                        {IconComponent && (
+                          <IconComponent className="h-7 w-7" style={{ color: domain.color }} />
+                        )}
+                      </div>
+
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge variant="outline" className="text-xs border-success text-success">
+                          {domain.demand}
+                        </Badge>
+
+                        {isRecommended && (
+                          <Badge className="bg-primary text-primary-foreground text-xs">
+                            Recommended
+                          </Badge>
+                        )}
+
+                        {isSaved && (
+                          <Badge variant="secondary" className="text-xs">
+                            Saved
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <CardTitle className="text-xl group-hover:text-primary transition-colors">
+                      {domain.name}
+                    </CardTitle>
+
+                    <CardDescription className="line-clamp-3">
+                      {domain.description}
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent>
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-4 mb-6 text-center">
+                      <div className="bg-muted/30 rounded-lg p-3">
+                        <Layers className="h-4 w-4 text-primary mx-auto mb-1" />
+                        <p className="text-xs text-muted-foreground">
+                          {roadmap.phases.length} Phases
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/30 rounded-lg p-3">
+                        <Clock className="h-4 w-4 text-primary mx-auto mb-1" />
+                        <p className="text-xs text-muted-foreground">{roadmap.estimatedTime}</p>
+                      </div>
+
+                      <div className="bg-muted/30 rounded-lg p-3">
+                        <Map className="h-4 w-4 text-primary mx-auto mb-1" />
+                        <p className="text-xs text-muted-foreground">{totalSkills} Skills</p>
+                      </div>
+                    </div>
+
+                    {/* Phases Preview */}
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-2">
+                        {roadmap.phases.map((phase) => (
+                          <div
+                            key={phase.name}
+                            className="flex-1 h-2 rounded-full bg-muted overflow-hidden"
+                          >
+                            <div className="h-full bg-primary/60 w-full" />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {roadmap.phases.map((phase) => phase.name).join(' • ')}
+                      </p>
+                    </div>
+
+                    <Link href={`/roadmaps/${domain.id}`}>
+                      <Button className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                        View Roadmap
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* Bottom CTA */}
+          <div className="mt-16 text-center">
+            <Card className="bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/30 max-w-2xl mx-auto">
+              <CardContent className="p-8">
+                <h3 className="text-xl font-semibold text-foreground mb-3 font-heading">
+                  Want the most suitable roadmap for your profile?
+                </h3>
+                <p className="text-muted-foreground mb-6">
+                  Take the Career Quiz to discover the domain that best matches your interests,
+                  skills, and goals.
+                </p>
+                <Link href="/quiz">
+                  <Button className="bg-primary hover:bg-primary/90">
+                    Take Career Quiz
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </main>
+
+      <Footer />
     </div>
   )
 }

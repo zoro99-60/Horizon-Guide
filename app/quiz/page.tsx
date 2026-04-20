@@ -1,280 +1,342 @@
-"use client"
+'use client'
 
-import { useEffect, useState, useMemo } from "react"
-import Link from "next/link"
-import { quizQuestions as mockQuestions, domains } from "@/lib/mock-data"
-import { api } from "@/lib/api-client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, ArrowRight, HelpCircle, RotateCcw, Sparkles } from "lucide-react"
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Navbar } from '@/components/navbar'
+import { Footer } from '@/components/footer'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { quizQuestions, domains } from '@/data/mockData'
+import { getProfile, saveQuizResult, getQuizResult } from '@/lib/store'
+import { QuestionCard } from '@/components/quiz/question-card'
+import { ResultSummary, QuizDomain } from '@/components/quiz/result-summary'
+import {
+  ArrowRight,
+  ClipboardList,
+  Sparkles,
+  Target,
+  Map,
+  UserCheck,
+} from 'lucide-react'
 
-type QuizState = "start" | "active" | "result"
+type QuizState = 'intro' | 'quiz' | 'result'
+
+interface QuizAnswer {
+  questionId: number
+  selectedIndex: number
+  domains: string[]
+}
 
 export default function QuizPage() {
-  const [state, setState] = useState<QuizState>("start")
-  const [currentQ, setCurrentQ] = useState(0)
-  const [answers, setAnswers] = useState<Record<number, number>>({})
-  const [questions, setQuestions] = useState(mockQuestions)
+  const router = useRouter()
+
+  const [state, setState] = useState<QuizState>('intro')
+  const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [answers, setAnswers] = useState<QuizAnswer[]>([])
+  const [selectedOption, setSelectedOption] = useState<number | null>(null)
+  const [result, setResult] = useState<{ primary: string; secondary: string } | null>(null)
+
+  const [profileChecked, setProfileChecked] = useState(false)
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const data = await api.getQuizQuestions() // Assuming api.getQuizQuestions() exists and returns an array of questions
-        if (data && data.length > 0) {
-          setQuestions(data)
-        }
-      } catch (error) {
-        console.error("Failed to fetch quiz questions:", error)
-        // Fallback to mockQuestions is already handled by initial useState value
-      }
+    const profile = getProfile()
+    setHasCompletedOnboarding(!!profile?.onboardingComplete)
+    
+    const existingResult = getQuizResult()
+    if (existingResult) {
+      setResult({
+        primary: existingResult.primaryDomain,
+        secondary: existingResult.secondaryDomain || 'data-science'
+      })
+      setState('result')
     }
-    loadData()
+    
+    setProfileChecked(true)
+    setMounted(true)
   }, [])
 
-  const progress = ((currentQ + 1) / questions.length) * 100
-
-  const results = useMemo(() => {
-    if (state !== "result") return []
-    const scores: Record<string, number> = {}
-    Object.entries(answers).forEach(([qIdx, optIdx]) => {
-      const question = questions[parseInt(qIdx)]
-      const option = question.options[optIdx]
-      Object.entries(option.weights as Record<string, number>).forEach(([domainId, weight]) => {
-        scores[domainId] = (scores[domainId] || 0) + weight
-      })
-    })
-
-    const maxScore = Math.max(...Object.values(scores))
-    return Object.entries(scores)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 3)
-      .map(([domainId, score]) => ({
-        domain: domains.find((d) => d.id === domainId)!,
-        score,
-        percentage: Math.round((score / maxScore) * 100),
-      }))
-  }, [answers, state])
-
   useEffect(() => {
-    if (state === "result" && results.length > 0) {
-      async function saveResult() {
-        try {
-          const { createClient } = await import("@/utils/supabase/client")
-          const supabase = createClient()
-          const { data: { user } } = await supabase.auth.getUser()
-          
-          if (user) {
-            await supabase.from("quiz_results").insert({
-              user_id: user.id,
-              quiz_data: { answers, results: results.map(r => ({ domainId: r.domain.id, percentage: r.percentage })) },
-              result_type: results[0].domain.id
-            })
-          }
-        } catch (error) {
-          console.error("Failed to save quiz result:", error)
-        }
-      }
-      saveResult()
-    }
-  }, [state, results])
+    if (state !== 'quiz') return
+    const existingAnswer = answers[currentQuestion]
+    setSelectedOption(existingAnswer ? existingAnswer.selectedIndex : null)
+  }, [currentQuestion, answers, state])
 
-  const handleSelect = (optionIndex: number) => {
-    setAnswers((prev) => ({ ...prev, [currentQ]: optionIndex }))
+  const progress = useMemo(() => {
+    if (state !== 'quiz') return 0
+    return ((currentQuestion + 1) / quizQuestions.length) * 100
+  }, [currentQuestion, state])
+
+  const handleStartQuiz = () => {
+    if (!hasCompletedOnboarding) {
+      router.push('/onboarding')
+      return
+    }
+
+    setState('quiz')
+    setCurrentQuestion(0)
+    setAnswers([])
+    setSelectedOption(null)
+    setResult(null)
+  }
+
+  const handleSelectOption = (index: number) => {
+    setSelectedOption(index)
   }
 
   const handleNext = () => {
-    if (currentQ < questions.length - 1) {
-      setCurrentQ((prev) => prev + 1)
-    } else {
-      setState("result")
+    if (selectedOption === null) return
+
+    const question = quizQuestions[currentQuestion]
+    const updatedAnswer: QuizAnswer = {
+      questionId: question.id,
+      selectedIndex: selectedOption,
+      domains: question.options[selectedOption].domains,
     }
+
+    const updatedAnswers = [...answers]
+    updatedAnswers[currentQuestion] = updatedAnswer
+    setAnswers(updatedAnswers)
+
+    if (currentQuestion < quizQuestions.length - 1) {
+      setCurrentQuestion((prev) => prev + 1)
+      return
+    }
+
+    const domainScores: Record<string, number> = {}
+
+    updatedAnswers.forEach((answer) => {
+      answer.domains.forEach((domain) => {
+        domainScores[domain] = (domainScores[domain] || 0) + 1
+      })
+    })
+
+    const sortedDomains = Object.entries(domainScores)
+      .sort(([, a], [, b]) => b - a)
+      .map(([domain]) => domain)
+
+    const quizResult = {
+      primary: sortedDomains[0] || 'web-development',
+      secondary: sortedDomains[1] || 'data-science',
+    }
+
+    setResult(quizResult)
+
+    saveQuizResult({
+      primaryDomain: quizResult.primary,
+      secondaryDomain: quizResult.secondary,
+      answers: updatedAnswers.map((a) => a.selectedIndex),
+      completedAt: new Date().toISOString(),
+    })
+
+    setState('result')
   }
 
-  const handlePrev = () => {
-    if (currentQ > 0) setCurrentQ((prev) => prev - 1)
+  const handlePrevious = () => {
+    if (currentQuestion === 0) return
+    setCurrentQuestion((prev) => prev - 1)
   }
 
-  const handleRestart = () => {
-    setState("start")
-    setCurrentQ(0)
-    setAnswers({})
+  const handleRetakeQuiz = () => {
+    setState('intro')
+    setCurrentQuestion(0)
+    setAnswers([])
+    setSelectedOption(null)
+    setResult(null)
   }
 
-  // ─── Start Screen ──────────────────────────────────────────────
-  if (state === "start") {
+  const handleViewRoadmap = () => {
+    if (!result?.primary) return
+    router.push(`/roadmaps/${result.primary}`)
+  }
+
+  const handleGoToOnboarding = () => {
+    router.push('/onboarding')
+  }
+
+  const primaryDomain = result ? domains.find((d) => d.id === result.primary) : null
+  const secondaryDomain = result ? domains.find((d) => d.id === result.secondary) : null
+
+  if (!mounted || !profileChecked) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 lg:px-8">
-        <div className="flex flex-col items-center text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10">
-            <HelpCircle className="h-10 w-10 text-primary" />
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="pt-24 pb-20">
+          <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+            <Card className="bg-card border-border">
+              <CardContent className="p-8 text-center">
+                <p className="text-muted-foreground">Loading your quiz experience...</p>
+              </CardContent>
+            </Card>
           </div>
-          <h1 className="mt-6 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Career Aptitude Quiz
-          </h1>
-          <p className="mt-4 max-w-lg text-muted-foreground leading-relaxed">
-            Answer 10 quick questions about your interests, preferences, and strengths.
-            We will recommend the top 3 engineering career domains that match your profile.
-          </p>
-          <div className="mt-6 flex flex-col gap-3 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">10 Questions</Badge>
-              <Badge variant="secondary">5 Minutes</Badge>
-              <Badge variant="secondary">Instant Results</Badge>
-            </div>
-          </div>
-          <Button
-            size="lg"
-            className="mt-8 gap-2"
-            onClick={() => setState("active")}
-          >
-            Start Quiz
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
+        </main>
+        <Footer />
       </div>
     )
   }
 
-  // ─── Result Screen ─────────────────────────────────────────────
-  if (state === "result") {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-10 lg:px-8">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Your Results
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Based on your answers, here are the top career domains for you.
-          </p>
-        </div>
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
 
-        <div className="flex flex-col gap-4">
-          {results.map((item, index) => {
-            const Icon = item.domain.icon
-            return (
-              <Card
-                key={item.domain.id}
-                className={`border bg-card ${index === 0 ? "ring-2 ring-primary/20" : ""}`}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-4">
-                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${item.domain.bgClass}`}>
-                      <Icon className={`h-6 w-6 ${item.domain.colorClass}`} />
+      <main className="pt-24 pb-20">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+          {!hasCompletedOnboarding && (
+            <Card className="bg-card border-border mb-8">
+              <CardContent className="p-6 sm:p-8 text-center">
+                <div className="flex justify-center mb-4">
+                  <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <UserCheck className="h-7 w-7 text-primary" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold font-heading text-foreground mb-3">
+                  Complete Onboarding First
+                </h2>
+                <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
+                  To give you accurate career recommendations, Horizon Guide first needs your
+                  year, branch, interests, and goals.
+                </p>
+                <Button
+                  className="bg-primary hover:bg-primary/90"
+                  onClick={handleGoToOnboarding}
+                >
+                  Go to Onboarding
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {hasCompletedOnboarding && state === 'intro' && (
+            <div className="text-center">
+              <div className="flex justify-center mb-6">
+                <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center">
+                  <ClipboardList className="h-10 w-10 text-primary" />
+                </div>
+              </div>
+
+              <Badge variant="secondary" className="mb-4">
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                Career Discovery Quiz
+              </Badge>
+
+              <h1 className="text-3xl sm:text-4xl font-bold font-heading text-foreground mb-4">
+                Discover Your Ideal Career Domain
+              </h1>
+
+              <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
+                Answer {quizQuestions.length} quick questions to find out which tech career path
+                matches your interests, strengths, and working style.
+              </p>
+
+              <Card className="bg-card border-border mb-8">
+                <CardContent className="p-6">
+                  <div className="grid sm:grid-cols-3 gap-6 text-center">
+                    <div>
+                      <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                        <Target className="h-6 w-6 text-primary" />
+                      </div>
+                      <p className="font-medium text-foreground">Personalized Results</p>
+                      <p className="text-sm text-muted-foreground">Based on your responses</p>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground">
-                          {item.domain.title}
-                        </h3>
-                        {index === 0 && (
-                          <Badge className="bg-primary text-primary-foreground">
-                            Best Match
-                          </Badge>
-                        )}
+
+                    <div>
+                      <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                        <ClipboardList className="h-6 w-6 text-primary" />
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {item.domain.shortDescription}
+                      <p className="font-medium text-foreground">
+                        {quizQuestions.length} Questions
                       </p>
-                      <div className="mt-3 flex items-center gap-3">
-                        <Progress value={item.percentage} className="h-2 flex-1" />
-                        <span className="text-sm font-semibold text-primary">
-                          {item.percentage}%
-                        </span>
+                      <p className="text-sm text-muted-foreground">Quick and easy</p>
+                    </div>
+
+                    <div>
+                      <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                        <Map className="h-6 w-6 text-primary" />
                       </div>
-                      <div className="mt-3">
-                        <Button asChild size="sm" variant={index === 0 ? "default" : "outline"}>
-                          <Link href="/roadmaps">View Roadmap</Link>
-                        </Button>
-                      </div>
+                      <p className="font-medium text-foreground">Get Roadmap</p>
+                      <p className="text-sm text-muted-foreground">Instant recommendations</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            )
-          })}
-        </div>
 
-        <div className="mt-8 flex justify-center gap-4">
-          <Button variant="outline" onClick={handleRestart} className="gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Retake Quiz
-          </Button>
-          <Button asChild>
-            <Link href="/career-insights">Explore All Domains</Link>
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  // ─── Active Quiz ───────────────────────────────────────────────
-  const question = questions[currentQ]
-
-  return (
-    <div className="mx-auto max-w-2xl px-4 py-10 lg:px-8">
-      {/* Progress */}
-      <div className="mb-8">
-        <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            Question {currentQ + 1} of {questions.length}
-          </span>
-          <span>{Math.round(progress)}% complete</span>
-        </div>
-        <Progress value={progress} className="h-2" />
-      </div>
-
-      {/* Question */}
-      <Card className="border bg-card">
-        <CardHeader>
-          <CardTitle className="text-xl leading-relaxed">
-            {question.question}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RadioGroup
-            value={answers[currentQ]?.toString() ?? ""}
-            onValueChange={(val) => handleSelect(parseInt(val))}
-          >
-            <div className="flex flex-col gap-3">
-              {question.options.map((option: any, idx: number) => (
-                <label
-                  key={idx}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-4 py-3.5 transition-colors hover:bg-accent has-[[data-state=checked]]:border-primary/30 has-[[data-state=checked]]:bg-primary/5"
-                >
-                  <RadioGroupItem value={idx.toString()} />
-                  <span className="text-sm font-medium text-foreground">
-                    {option.label}
-                  </span>
-                </label>
-              ))}
+              <Button
+                size="lg"
+                className="bg-primary hover:bg-primary/90 glow-primary"
+                onClick={handleStartQuiz}
+              >
+                Start Quiz
+                <ArrowRight className="h-5 w-5 ml-2" />
+              </Button>
             </div>
-          </RadioGroup>
-        </CardContent>
-      </Card>
+          )}
 
-      {/* Navigation */}
-      <div className="mt-6 flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={handlePrev}
-          disabled={currentQ === 0}
-          className="gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Previous
-        </Button>
-        <Button
-          onClick={handleNext}
-          disabled={answers[currentQ] === undefined}
-          className="gap-2"
-        >
-          {currentQ === questions.length - 1 ? "See Results" : "Next"}
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </div>
+          {hasCompletedOnboarding && state === 'quiz' && (
+            <div>
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-muted-foreground">
+                    Question {currentQuestion + 1} of {quizQuestions.length}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">
+                    {Math.round(progress)}%
+                  </span>
+                </div>
+                <Progress value={progress} className="h-2" />
+              </div>
+
+              <QuestionCard
+                question={quizQuestions[currentQuestion].question}
+                options={quizQuestions[currentQuestion].options}
+                selectedOption={selectedOption}
+                onSelectOption={handleSelectOption}
+                onNext={handleNext}
+                onPrevious={handlePrevious}
+                isFirst={currentQuestion === 0}
+                isLast={currentQuestion === quizQuestions.length - 1}
+              />
+            </div>
+          )}
+
+          {hasCompletedOnboarding && state === 'result' && primaryDomain && (
+            <div className="space-y-6">
+              <ResultSummary
+                primaryDomain={primaryDomain as QuizDomain}
+                secondaryDomain={secondaryDomain as QuizDomain | null}
+                onRetake={handleRetakeQuiz}
+              />
+
+              <Card className="bg-card border-border">
+                <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground mb-1">
+                      Ready to view your recommended roadmap?
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Explore the roadmap for {primaryDomain.name} and save it to your dashboard.
+                    </p>
+                  </div>
+
+                  <Button
+                    size="lg"
+                    className="bg-primary hover:bg-primary/90 shrink-0"
+                    onClick={handleViewRoadmap}
+                  >
+                    View Recommended Roadmap
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <Footer />
     </div>
   )
 }

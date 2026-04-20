@@ -1,89 +1,128 @@
-import Link from "next/link"
-import { Compass } from "lucide-react"
-import { Separator } from "@/components/ui/separator"
+import Link from 'next/link'
+import { Sparkles, Mail, MapPin, Phone } from 'lucide-react'
 
-const footerSections = [
-  {
-    title: "Quick Links",
-    links: [
-      { label: "Home", href: "/" },
-      { label: "Roadmaps", href: "/roadmaps" },
-      { label: "Career Insights", href: "/career-insights" },
-      { label: "Dashboard", href: "/dashboard" },
-    ],
-  },
-  {
-    title: "Resources",
-    links: [
-      { label: "Career Quiz", href: "/quiz" },
-      { label: "Community", href: "/community" },
-      { label: "Blog", href: "#" },
-      { label: "FAQ", href: "#" },
-    ],
-  },
-  {
-    title: "Connect",
-    links: [
-      { label: "Twitter", href: "#" },
-      { label: "LinkedIn", href: "#" },
-      { label: "GitHub", href: "#" },
-      { label: "Discord", href: "#" },
-    ],
-  },
-]
+const footerLinks = {
+  product: [
+    { label: 'Explore Domains', href: '/explore' },
+    { label: 'Career Roadmaps', href: '/roadmaps' },
+    { label: 'Career Quiz', href: '/quiz' },
+    { label: 'Learning Resources', href: '/dashboard/resources' },
+    { label: 'Project Ideas', href: '/dashboard/projects' },
+  ],
+  company: [
+    { label: 'About Us', href: '/about' },
+    { label: 'For Faculty', href: '/faculty' },
+    { label: 'For Administrators', href: '/admin' },
+    { label: 'Success Stories', href: '/about#testimonials' },
+    { label: 'Contact', href: '/about#contact' },
+  ],
+  resources: [
+    { label: 'Community', href: '/dashboard/community' },
+    { label: 'Placement Prep', href: '/dashboard/prep' },
+    { label: 'Skill Tracker', href: '/dashboard/skills' },
+    { label: 'Year-wise Planner', href: '/dashboard/planner' },
+    { label: 'Help Center', href: '/help' },
+  ],
+}
 
 export function Footer() {
   return (
-    <footer className="relative border-t border-border bg-card overflow-hidden">
-      {/* Subtle gradient background */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-primary/3 to-transparent" />
+    <footer className="bg-card border-t border-border">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Main Footer */}
+        <div className="py-12 lg:py-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-12">
+            {/* Brand */}
+            <div className="lg:col-span-2">
+              <Link href="/" className="flex items-center gap-2 mb-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+                  <Sparkles className="h-5 w-5 text-primary-foreground" />
+                </div>
+                <span className="text-xl font-bold font-heading tracking-tight">
+                  Horizon Guide
+                </span>
+              </Link>
+              <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mb-6">
+                Your comprehensive career development platform for engineering students. 
+                From 1st year to placement, we guide you every step of the way.
+              </p>
+              <div className="flex flex-col gap-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-primary" />
+                  <span>support@horizonguide.edu</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-primary" />
+                  <span>+91 98765 43210</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-primary" />
+                  <span>Engineering College Campus</span>
+                </div>
+              </div>
+            </div>
 
-      <div className="relative mx-auto max-w-7xl px-4 py-12 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Brand column */}
-          <div className="flex flex-col gap-4">
-            <Link href="/" className="group flex items-center gap-2 font-bold text-lg w-fit">
-              <Compass className="h-5 w-5 text-primary transition-transform duration-500 group-hover:rotate-45" />
-              <span className="text-foreground">Horizon</span>
-              <span className="text-primary">Guide</span>
-            </Link>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Empowering engineering students to navigate their career paths with personalized roadmaps and expert guidance.
-            </p>
-          </div>
-
-          {footerSections.map((section) => (
-            <div key={section.title} className="flex flex-col gap-3">
-              <h3 className="text-sm font-semibold text-foreground">{section.title}</h3>
-              <ul className="flex flex-col gap-2">
-                {section.links.map((link) => (
-                  <li key={link.label}>
+            {/* Links */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-4">Product</h3>
+              <ul className="space-y-3">
+                {footerLinks.product.map((link) => (
+                  <li key={link.href}>
                     <Link
                       href={link.href}
-                      className="group flex w-fit items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      <span className="transition-transform duration-200 group-hover:translate-x-0.5">
-                        {link.label}
-                      </span>
+                      {link.label}
                     </Link>
                   </li>
                 ))}
               </ul>
             </div>
-          ))}
+
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-4">Company</h3>
+              <ul className="space-y-3">
+                {footerLinks.company.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-4">Resources</h3>
+              <ul className="space-y-3">
+                {footerLinks.resources.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
 
-        <Separator className="my-8" />
-
-        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-xs text-muted-foreground">
-            &copy; 2026 HorizonGuide. All rights reserved.
+        {/* Bottom Bar */}
+        <div className="border-t border-border py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            2024 Horizon Guide. Built for engineering students.
           </p>
-          <div className="flex gap-4">
-            <Link href="#" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <Link href="/privacy" className="hover:text-foreground transition-colors">
               Privacy Policy
             </Link>
-            <Link href="#" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/terms" className="hover:text-foreground transition-colors">
               Terms of Service
             </Link>
           </div>

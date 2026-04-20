@@ -1,20 +1,27 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Inter, Manrope } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
-import { Navbar } from '@/components/navbar'
-import { Footer } from '@/components/footer'
 import './globals.css'
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+const inter = Inter({ 
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+})
+
+const manrope = Manrope({ 
+  subsets: ['latin'],
+  variable: '--font-manrope',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: {
-    default: 'HorizonGuide - Career Guidance for Engineering Students',
-    template: '%s | HorizonGuide',
-  },
-  description: 'Navigate your engineering career with personalized roadmaps, career insights, and expert guidance. Built for engineering students.',
+  title: 'Horizon Guide | Your Career Roadmap from 1st Year to Placement',
+  description: 'A comprehensive career development platform for engineering students. Discover career domains, generate personalized roadmaps, track skills, and prepare for placements.',
+  keywords: ['career guidance', 'engineering students', 'placement preparation', 'skill development', 'roadmap', 'internship'],
+  authors: [{ name: 'Horizon Guide' }],
+  generator: 'v0.app',
   icons: {
     icon: [
       {
@@ -35,10 +42,9 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f8fafc' },
-    { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
-  ],
+  themeColor: '#0B1020',
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({
@@ -47,16 +53,17 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <div className="flex min-h-screen flex-col">
-            <Navbar />
-            <main className="flex-1">{children}</main>
-            <Footer />
-          </div>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${manrope.variable} bg-background`}>
+      <body className="font-sans antialiased min-h-screen">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          {process.env.NODE_ENV === 'production' && <Analytics />}
         </ThemeProvider>
-        <Analytics />
       </body>
     </html>
   )
