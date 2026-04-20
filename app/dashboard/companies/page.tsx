@@ -32,8 +32,6 @@ export default function CompaniesPage() {
     setMounted(true)
   }, [])
 
-  if (!mounted) return null
-
   const filteredCompanies = useMemo(() => {
     if (!searchQuery.trim()) return companies
     const q = searchQuery.toLowerCase()
@@ -55,6 +53,8 @@ export default function CompaniesPage() {
         r.skills.some((s) => s.toLowerCase().includes(q))
     )
   }, [searchQuery])
+
+  if (!mounted) return null
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto">
